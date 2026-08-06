@@ -888,26 +888,22 @@ async function handlePrDetailCommand(
         file.status === "removed" ? "-" :
         file.status === "modified" ? "M" : "•";
 
-      // Truncate patch if too long
-      let patch = file.patch || "";
-      const maxPatchLines = 20;
-      const patchLines = patch.split("\n");
-      if (patchLines.length > maxPatchLines) {
-        patch = patchLines.slice(0, maxPatchLines).join("\n") + "\n... (truncated)";
-      }
+      const patch = file.patch || "";
+      const diffHtml = renderGitHubDiffHtml(patch, 30);
 
       filesHtml += `
-        <div style="margin: 12px 0; padding: 10px; background: #0d1117; border-radius: 6px; border: 1px solid #30363d;">
-          <div style="margin-bottom: 8px; font-family: monospace; font-size: 13px;">
-            <span style="color: ${statusColor}; font-weight: bold;">${statusIcon}</span>
-            <span style="color: #e6edf3; margin-left: 8px;">${file.filename}</span>
-            <span style="color: #8b949e; margin-left: 8px; font-size: 11px;">
-              +${file.additions} -${file.deletions}
+        <div style="margin: 12px 0; padding: 10px; background: #161b22; border-radius: 6px; border: 1px solid #30363d;">
+          <div style="margin-bottom: 8px; font-family: monospace; font-size: 13px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <span style="color: ${statusColor}; font-weight: bold;">${statusIcon}</span>
+              <span style="color: #e6edf3; margin-left: 8px; font-weight: 500;">${escapeHtml(file.filename)}</span>
+            </div>
+            <span style="color: #8b949e; font-size: 11px;">
+              <span style="color: #3fb950;">+${file.additions}</span>
+              <span style="color: #f85149; margin-left: 4px;">-${file.deletions}</span>
             </span>
           </div>
-          ${patch ? `
-            <pre style="margin: 8px 0 0 0; padding: 8px; background: #161b22; border-radius: 4px; overflow-x: auto; font-size: 11px; line-height: 1.4; color: #c9d1d9; font-family: 'Consolas', 'Monaco', monospace; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(patch)}</pre>
-          ` : ""}
+          ${diffHtml}
         </div>
       `;
     }
@@ -975,4 +971,41 @@ function escapeHtml(text: string): string {
     "'": '&#039;'
   };
   return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+/**
+ * Render GitHub-style colored diff HTML for PR patch lines.
+ * Additions: Green (+), Deletions: Red (-), Hunks: Blue (@@)
+ */
+function renderGitHubDiffHtml(patch: string, maxLines: number = 25): string {
+  if (!patch) return "";
+
+  const lines = patch.split("\n");
+  const displayLines = lines.length > maxLines ? lines.slice(0, maxLines) : lines;
+
+  const renderedLines = displayLines.map((line) => {
+    const escaped = escapeHtml(line);
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      return `<div style="background: rgba(46, 160, 67, 0.15); color: #3fb950; padding: 1px 8px; border-left: 3px solid #3fb950; font-family: 'Consolas', 'Monaco', monospace;">${escaped}</div>`;
+    }
+    if (line.startsWith("-") && !line.startsWith("---")) {
+      return `<div style="background: rgba(248, 81, 73, 0.15); color: #f85149; padding: 1px 8px; border-left: 3px solid #f85149; font-family: 'Consolas', 'Monaco', monospace;">${escaped}</div>`;
+    }
+    if (line.startsWith("@@")) {
+      return `<div style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; font-weight: bold; padding: 2px 8px; margin: 2px 0; font-family: 'Consolas', 'Monaco', monospace;">${escaped}</div>`;
+    }
+    return `<div style="color: #8b949e; padding: 1px 8px; border-left: 3px solid transparent; font-family: 'Consolas', 'Monaco', monospace;">${escaped}</div>`;
+  });
+
+  if (lines.length > maxLines) {
+    renderedLines.push(
+      `<div style="color: #6e7681; font-style: italic; padding: 4px 8px; background: #161b22; text-align: center; font-size: 11px;">... (省略 ${lines.length - maxLines} 行代码变动)</div>`
+    );
+  }
+
+  return `
+    <div style="margin-top: 8px; border-radius: 6px; overflow: hidden; background: #0d1117; border: 1px solid #30363d; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all;">
+      ${renderedLines.join("")}
+    </div>
+  `;
 }
