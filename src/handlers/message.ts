@@ -38,7 +38,7 @@ function buildHelpMessage(prefix: string) {
     `${prefix}help`,
     `${prefix}github on | ${prefix}github off`,
     `${prefix}github sub <owner/repo> [events]`,
-    `${prefix}github unsub <owner/repo>`,
+    `${prefix}github unsub <owner/repo> [events]`,
     `${prefix}github list`,
     `${prefix}readme <owner/repo>`,
     `${prefix}readme <repo-url>`,
@@ -103,12 +103,15 @@ export async function handleMessage(
   }
 
   if (messageType === "group") {
+    const senderId = String(payload.user_id || payload.sender?.user_id || "");
+    const masters = getConfig().onebot.masters || [];
+    const isMaster = masters.includes(senderId);
     const senderRole = payload.sender?.role;
-    const isAdmin = senderRole === "owner" || senderRole === "admin";
+    const isAdmin = isMaster || senderRole === "owner" || senderRole === "admin";
 
     if (text.startsWith(`${prefix}github off`)) {
       if (!isAdmin) {
-        await bot.sendGroupText(targetId, "只有群主或管理员可以禁用推送。");
+        await bot.sendGroupText(targetId, "只有 Master、群主或管理员可以禁用推送。");
         return;
       }
       setGroupToggle(targetId, true);
@@ -118,7 +121,7 @@ export async function handleMessage(
 
     if (text.startsWith(`${prefix}github on`)) {
       if (!isAdmin) {
-        await bot.sendGroupText(targetId, "只有群主或管理员可以启用推送。");
+        await bot.sendGroupText(targetId, "只有 Master、群主或管理员可以启用推送。");
         return;
       }
       setGroupToggle(targetId, false);
@@ -128,23 +131,24 @@ export async function handleMessage(
 
     if (text.startsWith(`${prefix}github sub `)) {
       if (!isAdmin) {
-        await bot.sendGroupText(targetId, "只有群主或管理员可以管理订阅。");
+        await bot.sendGroupText(targetId, "只有 Master、群主或管理员可以管理订阅。");
         return;
       }
       const parts = text.split(/\s+/).filter(Boolean);
       const targetRepo = parts[2];
-      const eventsStr = parts[3];
       if (!targetRepo || !targetRepo.includes("/")) {
         await bot.sendGroupText(
           targetId,
-          `用法: ${prefix}github sub owner/repo [事件,以逗号隔开]\n支持事件: push, issues, pull_request, pull_request_review, release, star, fork, issue_comment`
+          `用法: ${prefix}github sub owner/repo [事件,以逗号或空格隔开]\n支持事件: push, issues, pull_request, pull_request_review, pull_request_review_comment, release, star, fork, issue_comment, commit_comment`
         );
         return;
       }
 
-      const events = eventsStr
-        ? eventsStr.split(",")
-        : ["push", "issues", "pull_request", "pull_request_review", "release", "star", "fork", "issue_comment"];
+      const rawEvents = parts.slice(3).join(",").split(/[\s,]+/).filter(Boolean);
+      const events =
+        rawEvents.length > 0
+          ? rawEvents
+          : ["push", "issues", "pull_request", "pull_request_review", "release", "star", "fork", "issue_comment"];
       addSubscription(cleanRepoName(targetRepo), events, {
         type: "group",
         id: targetId,
@@ -158,25 +162,37 @@ export async function handleMessage(
 
     if (text.startsWith(`${prefix}github unsub `)) {
       if (!isAdmin) {
-        await bot.sendGroupText(targetId, "只有群主或管理员可以管理订阅。");
+        await bot.sendGroupText(targetId, "只有 Master、群主或管理员可以管理订阅。");
         return;
       }
       const parts = text.split(/\s+/).filter(Boolean);
       const targetRepo = parts[2];
       if (!targetRepo) {
-        await bot.sendGroupText(targetId, `用法: ${prefix}github unsub owner/repo`);
+        await bot.sendGroupText(targetId, `用法: ${prefix}github unsub owner/repo [事件,以逗号或空格隔开]`);
         return;
       }
-      const removed = removeSubscription(cleanRepoName(targetRepo), {
-        type: "group",
-        id: targetId,
-      });
-      await bot.sendGroupText(
-        targetId,
-        removed
-          ? `已取消订阅: ${targetRepo}`
-          : `本群尚未订阅仓库 ${targetRepo}`
+
+      const eventsToRemove = parts.slice(3).join(",").split(/[\s,]+/).filter(Boolean);
+      const result = removeSubscription(
+        cleanRepoName(targetRepo),
+        { type: "group", id: targetId },
+        eventsToRemove.length > 0 ? eventsToRemove : undefined
       );
+
+      if (!result.success) {
+        await bot.sendGroupText(targetId, `本群尚未订阅仓库 ${targetRepo} 或未包含指定的取消事件。`);
+      } else if (eventsToRemove.length > 0) {
+        const removedStr = (result.removedEvents || []).join(", ");
+        const remainingStr = (result.remainingEvents || []).length > 0
+          ? (result.remainingEvents || []).join(", ")
+          : "无 (已完全取消该仓库订阅)";
+        await bot.sendGroupText(
+          targetId,
+          `已从 ${targetRepo} 移除事件: ${removedStr}\n当前剩余订阅事件: ${remainingStr}`
+        );
+      } else {
+        await bot.sendGroupText(targetId, `已取消订阅仓库: ${targetRepo}`);
+      }
       return;
     }
 
@@ -646,7 +662,7 @@ async function handlePrCommand(
         eventIcon: "",
         eventLabel,
         repoFullName: `${owner}/${repoName}`,
-        title: pr.title,
+        title: escapeHtml(pr.title || ""),
         number: pr.number,
         avatarUrl: getAvatarUrl(pr.user?.login || "github"),
         authorName: pr.user?.login || "unknown",
@@ -727,7 +743,7 @@ async function handlePrSummaryCard(
       eventIcon: "",
       eventLabel: `PR ${statusText}`,
       repoFullName: `${owner}/${repoName}`,
-      title: pr.title,
+      title: escapeHtml(pr.title || ""),
       number: pr.number,
       avatarUrl: getAvatarUrl(pr.user?.login || "github"),
       authorName: pr.user?.login || "unknown",
@@ -793,7 +809,7 @@ async function handleIssueSummaryCard(
       eventIcon: "",
       eventLabel: `Issue ${statusText}`,
       repoFullName: `${owner}/${repoName}`,
-      title: issue.title,
+      title: escapeHtml(issue.title || ""),
       number: issue.number,
       avatarUrl: getAvatarUrl(issue.user?.login || "github"),
       authorName: issue.user?.login || "unknown",
@@ -924,7 +940,7 @@ async function handlePrDetailCommand(
         eventIcon: "",
         eventLabel,
         repoFullName: `${owner}/${repoName}`,
-        title: pr.title,
+        title: escapeHtml(pr.title || ""),
         number: pr.number,
         avatarUrl: getAvatarUrl(pr.user?.login || "github"),
         authorName: pr.user?.login || "unknown",

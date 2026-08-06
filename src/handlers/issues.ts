@@ -2,6 +2,7 @@ import { renderTemplate, markdownToHtml } from "../renderer";
 import { getAvatarUrl } from "../github/api";
 import { findSubscribers } from "../config";
 import { OneBotClient } from "../onebot/client";
+import { escapeHtml } from "../utils";
 
 export async function handleIssues(
   payload: any,
@@ -63,7 +64,7 @@ export async function handleIssues(
       eventIcon: "",
       eventLabel,
       repoFullName: repo.full_name,
-      title: issue.title,
+      title: escapeHtml(issue.title || ""),
       number: issue.number,
       avatarUrl: getAvatarUrl(sender.login),
       authorName: sender.login,

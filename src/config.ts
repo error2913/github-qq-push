@@ -6,6 +6,7 @@ export interface OneBotConfig {
   ws_url: string;
   access_token: string;
   command_prefix: string; // e.g. "/" or "!"
+  masters?: string[]; // Master QQ list
 }
 
 export interface GitHubConfig {
@@ -83,6 +84,9 @@ export function loadConfig(): AppConfig {
   }
   if (!config.onebot.command_prefix) {
     config.onebot.command_prefix = "/";
+  }
+  if (!config.onebot.masters) {
+    config.onebot.masters = [];
   }
   if (!config.github.access_tokens) {
     if (config.github.access_token) {
@@ -176,32 +180,61 @@ export function addSubscription(
 }
 
 /**
- * Remove a subscription for a target.
+ * Remove a subscription (or specific events) for a target.
  */
 export function removeSubscription(
   repoFullName: string,
-  target: SubscriptionTarget
-): boolean {
+  target: SubscriptionTarget,
+  eventsToRemove?: string[]
+): { success: boolean; removedEvents?: string[]; remainingEvents?: string[] } {
   const subIndex = config.subscriptions.findIndex((s) => s.repo === repoFullName);
-  if (subIndex === -1) return false;
+  if (subIndex === -1) return { success: false };
 
   const sub = config.subscriptions[subIndex];
   const targetIndex = sub.targets.findIndex(
     (t) => t.type === target.type && t.id === target.id
   );
 
-  if (targetIndex === -1) return false; // not subscribed
+  if (targetIndex === -1) return { success: false }; // not subscribed
 
-  // Remove target
-  sub.targets.splice(targetIndex, 1);
+  if (eventsToRemove && eventsToRemove.length > 0) {
+    const toRemoveSet = new Set(eventsToRemove);
+    const removed: string[] = [];
+    const remaining: string[] = [];
 
-  // If no targets left, remove the subscription block entirely
-  if (sub.targets.length === 0) {
-    config.subscriptions.splice(subIndex, 1);
+    for (const ev of sub.events) {
+      if (toRemoveSet.has(ev)) {
+        removed.push(ev);
+      } else {
+        remaining.push(ev);
+      }
+    }
+
+    if (removed.length === 0) {
+      return { success: false, removedEvents: [], remainingEvents: sub.events };
+    }
+
+    sub.events = remaining;
+
+    // If no events left for this repo, remove target from this sub block
+    if (sub.events.length === 0) {
+      sub.targets.splice(targetIndex, 1);
+      if (sub.targets.length === 0) {
+        config.subscriptions.splice(subIndex, 1);
+      }
+    }
+
+    saveConfigToDisk(config);
+    return { success: true, removedEvents: removed, remainingEvents: sub.events };
+  } else {
+    // Remove target completely
+    sub.targets.splice(targetIndex, 1);
+    if (sub.targets.length === 0) {
+      config.subscriptions.splice(subIndex, 1);
+    }
+    saveConfigToDisk(config);
+    return { success: true, removedEvents: sub.events, remainingEvents: [] };
   }
-
-  saveConfigToDisk(config);
-  return true;
 }
 
 /**

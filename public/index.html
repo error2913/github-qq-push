@@ -583,6 +583,10 @@
             <label>指令前缀 (Command Prefix)</label>
             <input id="cfg-ob-prefix" class="form-control" placeholder="/">
           </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Master QQ 列表 (每行一个 QQ 号，具有最高管理权限，可跨越群主/管理限制)</label>
+            <textarea id="cfg-ob-masters" class="form-control" placeholder="12345678&#10;87654321" rows="2"></textarea>
+          </div>
         </div>
 
         <h3 style="margin-top:30px; color: var(--accent);">GitHub 基础设置</h3>
@@ -813,6 +817,7 @@
           document.getElementById("cfg-ob-ws").value = currentConfig.onebot.ws_url || "";
           document.getElementById("cfg-ob-token").value = currentConfig.onebot.access_token || "";
           document.getElementById("cfg-ob-prefix").value = currentConfig.onebot.command_prefix || "/";
+          document.getElementById("cfg-ob-masters").value = (currentConfig.onebot.masters || []).join("\n");
           document.getElementById("cfg-gh-port").value = currentConfig.github.webhook_port || 7890;
           document.getElementById("cfg-gh-secret").value = currentConfig.github.webhook_secret || "";
           document.getElementById("cfg-gh-token").value = (currentConfig.github.access_tokens && currentConfig.github.access_tokens.length > 0) ? currentConfig.github.access_tokens.join("\n") : (currentConfig.github.access_token || "");
@@ -987,6 +992,8 @@
       currentConfig.onebot.ws_url = document.getElementById("cfg-ob-ws").value;
       currentConfig.onebot.access_token = document.getElementById("cfg-ob-token").value;
       currentConfig.onebot.command_prefix = document.getElementById("cfg-ob-prefix").value || "/";
+      const rawMasters = document.getElementById("cfg-ob-masters").value;
+      currentConfig.onebot.masters = rawMasters.split(/[\s,]+/).map(v => v.trim()).filter(Boolean);
       currentConfig.github.webhook_port = parseInt(document.getElementById("cfg-gh-port").value, 10) || 7890;
       currentConfig.github.webhook_secret = document.getElementById("cfg-gh-secret").value;
       const rawTokens = document.getElementById("cfg-gh-token").value;

@@ -169,15 +169,28 @@ export class GitHubEventPoller {
 
     // Find new events (events are sorted newest first)
     const newEvents: any[] = [];
+    let foundLastId = false;
     for (const event of events) {
-      if (String(event.id) === lastId) break;
+      if (String(event.id) === lastId) {
+        foundLastId = true;
+        break;
+      }
       newEvents.push(event);
     }
 
-    if (newEvents.length === 0) {
-      // console.log(`[Poller] ${repoFullName}: No new events since #${lastId}`);
+    if (!foundLastId && newEvents.length === events.length) {
+      // lastId was not found in the fetched window (e.g. baseline too old or gap > 30 events)
+      console.warn(`[Poller] ${repoFullName}: lastId #${lastId} not found in recent events. Updating baseline to #${events[0].id}`);
+      setLastEventId(repoFullName, String(events[0].id));
       return;
     }
+
+    if (newEvents.length === 0) {
+      return;
+    }
+
+    // Update last event ID to the newest immediately
+    setLastEventId(repoFullName, String(newEvents[0].id));
 
     // Process in chronological order (oldest first)
     newEvents.reverse();
@@ -201,9 +214,6 @@ export class GitHubEventPoller {
         }
       }
     }
-
-    // Update last event ID to the newest
-    setLastEventId(repoFullName, String(newEvents[newEvents.length - 1].id));
   }
 
   private collectRepos(): string[] {

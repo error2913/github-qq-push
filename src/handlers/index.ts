@@ -6,6 +6,7 @@ import { handleRelease } from "./release";
 import { handleStar } from "./star";
 import { handleFork } from "./fork";
 import { handleComment } from "./comment";
+import { getEventFingerprint, isEventProcessed, markEventProcessed } from "../github/dedup";
 
 /**
  * Route GitHub webhook events to their handlers.
@@ -16,6 +17,17 @@ export async function routeEvent(
   bot: OneBotClient
 ): Promise<void> {
   const repoName = payload.repository?.full_name || "unknown";
+
+  // Check event fingerprint for deduplication
+  const fingerprint = getEventFingerprint(event, payload);
+  if (fingerprint) {
+    if (isEventProcessed(fingerprint)) {
+      console.log(`[Router] Duplicate event ignored (fingerprint: ${fingerprint})`);
+      return;
+    }
+    markEventProcessed(fingerprint);
+  }
+
   console.log(
     `[Router] Routing event: ${event}${payload.action ? `/${payload.action}` : ""} from ${repoName}`
   );

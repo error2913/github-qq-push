@@ -2,6 +2,7 @@ import { renderTemplate, markdownToHtml } from "../renderer";
 import { getAvatarUrl } from "../github/api";
 import { findSubscribers } from "../config";
 import { OneBotClient } from "../onebot/client";
+import { escapeHtml } from "../utils";
 
 /**
  * Unified handler for comment-related events:
@@ -158,7 +159,7 @@ export async function handleComment(
       badgeClass,
       eventLabel,
       repoFullName: repo.full_name,
-      title,
+      title: escapeHtml(title || ""),
       number: numberStr,
       avatarUrl: getAvatarUrl(sender.login),
       authorName: sender.login,

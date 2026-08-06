@@ -2,6 +2,7 @@ import { renderTemplate, markdownToHtml } from "../renderer";
 import { getAvatarUrl } from "../github/api";
 import { findSubscribers } from "../config";
 import { OneBotClient } from "../onebot/client";
+import { escapeHtml } from "../utils";
 
 export async function handlePullRequest(
   payload: any,
@@ -65,7 +66,7 @@ export async function handlePullRequest(
       eventIcon: "",
       eventLabel,
       repoFullName: repo.full_name,
-      title: pr.title,
+      title: escapeHtml(pr.title || ""),
       number: pr.number,
       avatarUrl: getAvatarUrl(sender.login),
       authorName: sender.login,
