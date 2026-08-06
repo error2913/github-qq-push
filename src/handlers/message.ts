@@ -889,7 +889,7 @@ async function handlePrDetailCommand(
         file.status === "modified" ? "M" : "•";
 
       const patch = file.patch || "";
-      const diffHtml = renderGitHubDiffHtml(patch, 30);
+      const diffHtml = renderGitHubDiffHtml(patch, 500);
 
       filesHtml += `
         <div style="margin: 12px 0; padding: 10px; background: #161b22; border-radius: 6px; border: 1px solid #30363d;">
@@ -977,7 +977,7 @@ function escapeHtml(text: string): string {
  * Render GitHub-style colored diff HTML for PR patch lines.
  * Additions: Green (+), Deletions: Red (-), Hunks: Blue (@@)
  */
-function renderGitHubDiffHtml(patch: string, maxLines: number = 25): string {
+function renderGitHubDiffHtml(patch: string, maxLines: number = 500): string {
   if (!patch) return "";
 
   const lines = patch.split("\n");
