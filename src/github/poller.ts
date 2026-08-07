@@ -1,4 +1,4 @@
-import { getOctokit } from "./api";
+import { getOctokit, getPullRequest } from "./api";
 import { getConfig } from "../config";
 import { getLastEventId, setLastEventId } from "../state";
 import { routeEvent } from "../handlers";
@@ -205,7 +205,7 @@ export class GitHubEventPoller {
       }
 
       console.log(`[Poller] Forwarding event ${eventType} (#${event.id}) for ${repoFullName}`);
-      const payload = this.normalizePayload(event, repoFullName);
+      const payload = await this.normalizePayload(event, repoFullName);
       if (payload) {
         try {
           await routeEvent(eventType, payload, this.bot);
@@ -272,7 +272,7 @@ export class GitHubEventPoller {
   /**
    * Normalize an Events API payload to look like a webhook payload.
    */
-  private normalizePayload(event: any, repoFullName: string): any {
+  private async normalizePayload(event: any, repoFullName: string): Promise<any> {
     const payload = event.payload || {};
     const [owner, repo] = repoFullName.split("/");
 
@@ -308,8 +308,21 @@ export class GitHubEventPoller {
     }
 
     // PullRequestEvent normalization
+    // GitHub Events API (since late 2025) strips most fields from pull_request,
+    // including title. We must fetch the full PR if title is missing.
     if (event.type === "PullRequestEvent") {
       payload.pull_request = payload.pull_request || {};
+      const prNumber = payload.pull_request.number ?? payload.number;
+      if (!payload.pull_request.title && prNumber) {
+        try {
+          console.log(`[Poller] Fetching full PR details for ${repoFullName}#${prNumber} (title missing from Events API)`);
+          const fullPr = await getPullRequest(owner, repo, prNumber);
+          // Merge full PR data into the payload, preserving any fields already present
+          payload.pull_request = { ...fullPr, ...payload.pull_request };
+        } catch (e: any) {
+          console.warn(`[Poller] Failed to fetch PR details for ${repoFullName}#${prNumber}:`, e.message);
+        }
+      }
     }
 
     // ReleaseEvent normalization
@@ -339,15 +352,37 @@ export class GitHubEventPoller {
     }
 
     // PullRequestReviewEvent normalization
+    // Same issue: title is stripped from pull_request in Events API.
     if (event.type === "PullRequestReviewEvent") {
       payload.pull_request = payload.pull_request || {};
       payload.review = payload.review || {};
+      const prNumber = payload.pull_request.number;
+      if (!payload.pull_request.title && prNumber) {
+        try {
+          console.log(`[Poller] Fetching full PR details for ${repoFullName}#${prNumber} (review event, title missing)`);
+          const fullPr = await getPullRequest(owner, repo, prNumber);
+          payload.pull_request = { ...fullPr, ...payload.pull_request };
+        } catch (e: any) {
+          console.warn(`[Poller] Failed to fetch PR details for ${repoFullName}#${prNumber}:`, e.message);
+        }
+      }
     }
 
     // PullRequestReviewCommentEvent normalization
+    // Same issue: title is stripped from pull_request in Events API.
     if (event.type === "PullRequestReviewCommentEvent") {
       payload.pull_request = payload.pull_request || {};
       payload.comment = payload.comment || {};
+      const prNumber = payload.pull_request.number;
+      if (!payload.pull_request.title && prNumber) {
+        try {
+          console.log(`[Poller] Fetching full PR details for ${repoFullName}#${prNumber} (review comment event, title missing)`);
+          const fullPr = await getPullRequest(owner, repo, prNumber);
+          payload.pull_request = { ...fullPr, ...payload.pull_request };
+        } catch (e: any) {
+          console.warn(`[Poller] Failed to fetch PR details for ${repoFullName}#${prNumber}:`, e.message);
+        }
+      }
     }
 
     return payload;
