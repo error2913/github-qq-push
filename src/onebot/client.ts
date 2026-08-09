@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import { OneBotConfig } from "../config";
+import { sanitizeTextForCq } from "../utils";
 
 interface PendingRequest {
   resolve: (data: any) => void;
@@ -120,7 +121,13 @@ export class OneBotClient {
       : this.config.ws_url;
 
     console.log(`[OneBot] Connecting to ${this.config.ws_url}...`);
-    this.ws = new WebSocket(url);
+    try {
+      this.ws = new WebSocket(url);
+    } catch (e: any) {
+      console.error(`[OneBot] Invalid WebSocket URL "${this.config.ws_url}":`, e.message);
+      this.scheduleReconnect();
+      return;
+    }
 
     this.ws.on("open", () => {
       console.log("[OneBot] WebSocket connected!");
@@ -340,7 +347,7 @@ export class OneBotClient {
     try {
       await this.callApi("send_group_msg", {
         group_id: Number(groupId),
-        message: text,
+        message: sanitizeTextForCq(text),
       });
       let preview = text.replace(/\n/g, " ");
       if (preview.length > 50) preview = preview.slice(0, 50) + "...";
@@ -385,7 +392,7 @@ export class OneBotClient {
     try {
       await this.callApi("send_private_msg", {
         user_id: Number(userId),
-        message: text,
+        message: sanitizeTextForCq(text),
       });
       let preview = text.replace(/\n/g, " ");
       if (preview.length > 50) preview = preview.slice(0, 50) + "...";

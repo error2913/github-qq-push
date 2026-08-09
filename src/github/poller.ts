@@ -146,12 +146,7 @@ export class GitHubEventPoller {
     const [owner, repo] = repoFullName.split("/");
     if (!owner || !repo) return;
 
-    const octokit = getOctokit();
-    const { data: events } = await octokit.activity.listRepoEvents({
-      owner,
-      repo,
-      per_page: 30,
-    });
+    const events = await this.fetchRepoEvents(owner, repo);
 
     if (!events || events.length === 0) {
       console.log(`[Poller] ${repoFullName}: No events found.`);
@@ -179,7 +174,8 @@ export class GitHubEventPoller {
     }
 
     if (!foundLastId && newEvents.length === events.length) {
-      // lastId was not found in the fetched window (e.g. baseline too old or gap > 30 events)
+      // lastId was not found even after paginating up to 300 events,
+      // meaning the service was offline long enough for a large gap.
       console.warn(`[Poller] ${repoFullName}: lastId #${lastId} not found in recent events. Updating baseline to #${events[0].id}`);
       setLastEventId(repoFullName, String(events[0].id));
       return;
@@ -188,9 +184,6 @@ export class GitHubEventPoller {
     if (newEvents.length === 0) {
       return;
     }
-
-    // Update last event ID to the newest immediately
-    setLastEventId(repoFullName, String(newEvents[0].id));
 
     // Process in chronological order (oldest first)
     newEvents.reverse();
@@ -209,11 +202,42 @@ export class GitHubEventPoller {
       if (payload) {
         try {
           await routeEvent(eventType, payload, this.bot);
+          // Advance the baseline only after the event was successfully
+          // routed, so a crash mid-batch does not silently skip events.
+          setLastEventId(repoFullName, String(event.id));
         } catch (e: any) {
           console.error(`[Poller] Failed to route event ${eventType}:`, e.message);
         }
       }
     }
+  }
+
+  /**
+   * Fetch repo events with pagination (up to 3 pages x 100 events) so a
+   * moderate outage does not silently drop missed events.
+   */
+  private async fetchRepoEvents(owner: string, repo: string): Promise<any[]> {
+    const octokit = getOctokit();
+    const all: any[] = [];
+    const seen = new Set<string>();
+    for (let page = 1; page <= 3; page++) {
+      const { data } = await octokit.activity.listRepoEvents({
+        owner,
+        repo,
+        per_page: 100,
+        page,
+      });
+      if (!data || data.length === 0) break;
+      for (const ev of data) {
+        const key = String(ev.id);
+        if (!seen.has(key)) {
+          seen.add(key);
+          all.push(ev);
+        }
+      }
+      if (data.length < 100) break;
+    }
+    return all;
   }
 
   private collectRepos(): string[] {
@@ -275,6 +299,11 @@ export class GitHubEventPoller {
   private normalizePayload(event: any, repoFullName: string): any {
     const payload = event.payload || {};
     const [owner, repo] = repoFullName.split("/");
+
+    // Preserve the event time for handlers that want it (e.g. star/fork cards)
+    if (event.created_at && !payload.created_at) {
+      payload.created_at = event.created_at;
+    }
 
     // Add common fields that webhook payloads have
     if (!payload.repository) {

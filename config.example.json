@@ -14,12 +14,19 @@
     "link_card_group_mode": "all",
     "link_card_enabled_groups": []
   },
+  "webui": {
+    "username": "admin",
+    "password": ""
+  },
   "subscriptions": [
     {
       "repo": "owner/repo",
-      "events": ["push", "issues", "pull_request", "release", "star", "fork", "issue_comment"],
       "targets": [
-        { "type": "group", "id": "123456" }
+        {
+          "type": "group",
+          "id": "123456",
+          "events": ["push", "issues", "pull_request", "release", "star", "fork", "issue_comment"]
+        }
       ]
     }
   ]

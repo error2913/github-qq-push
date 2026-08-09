@@ -10,6 +10,8 @@ services:
     volumes:
       # 将宿主机的配置文件挂载到容器内，保证配置持久化
       - ./config.json:/app/config.json
+      # 持久化运行时状态（群推送开关、轮询基线）
+      - ./data:/app/data
       # 可选：如果需要持久化日志文件，可以取消下方注释
       # - ./logs:/app/logs
     environment:
