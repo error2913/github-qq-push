@@ -31,7 +31,7 @@ export async function handlePush(
       return `<div class="commit-item">
         <span class="commit-sha">${sha}</span>
         <span class="commit-message">${message}</span>
-        <span class="commit-author">${author}</span>
+        <span class="commit-author">${escapeHtml(author)}</span>
       </div>`;
     })
     .join("");
@@ -78,7 +78,7 @@ export async function handlePush(
       avatarUrl: getAvatarUrl(sender.login),
       pusherName: sender.login,
       commitCount: commits.length,
-      branch,
+      branch: escapeHtml(branch),
       commitsHtml: commitsHtml + moreCommits,
       statsHtml,
       compareText,

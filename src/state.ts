@@ -46,18 +46,28 @@ export function initState(): void {
  * Save state to disk.
  */
 export function saveState(): void {
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  atomicWriteFileSync(statePath, JSON.stringify(state, null, 2));
 }
 
 /**
  * Save current config back to config.json map
  */
 export function saveConfig(newConfig: AppConfig): void {
-  fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
+  atomicWriteFileSync(configPath, JSON.stringify(newConfig, null, 2));
   // Hot reload config in memory by calling loadConfig or updating the reference
   // Since config is imported elsewhere, we mutate the existing config object properties
   const currentConfig = getConfig();
   Object.assign(currentConfig, newConfig);
+}
+
+/**
+ * Write a file atomically (write to temp file, then rename) to avoid
+ * corrupting state/config on crash mid-write.
+ */
+function atomicWriteFileSync(targetPath: string, content: string): void {
+  const tmpPath = `${targetPath}.tmp`;
+  fs.writeFileSync(tmpPath, content);
+  fs.renameSync(tmpPath, targetPath);
 }
 
 /**
