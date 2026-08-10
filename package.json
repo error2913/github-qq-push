@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "GitHub event push service for QQ via OneBot forward WebSocket (NapCat)",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",

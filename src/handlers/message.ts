@@ -38,10 +38,12 @@ const DEFAULT_EVENTS = [
   "issues",
   "pull_request",
   "pull_request_review",
+  "pull_request_review_comment",
   "release",
   "star",
   "fork",
   "issue_comment",
+  "commit_comment",
 ];
 
 // Cooldown between auto-replied GitHub link cards per target (10s)

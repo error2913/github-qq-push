@@ -106,6 +106,15 @@ export function markEventProcessed(fingerprint: string): void {
 }
 
 /**
+ * Remove a fingerprint from the processed cache.
+ * Used to roll back the dedup mark when routing fails, so a transient
+ * handler error does not swallow the event until the TTL expires.
+ */
+export function deleteProcessedEvent(fingerprint: string): void {
+  PROCESSED_EVENTS.delete(fingerprint);
+}
+
+/**
  * Remove expired entries from the cache.
  */
 function cleanExpired(): void {

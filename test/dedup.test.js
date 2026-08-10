@@ -4,6 +4,7 @@ const {
   getEventFingerprint,
   markEventProcessed,
   isEventProcessed,
+  deleteProcessedEvent,
 } = require("../dist/github/dedup");
 
 test("star/watch fingerprints are identical regardless of action naming", () => {
@@ -44,4 +45,12 @@ test("unhandled event types return null fingerprint", () => {
     }),
     null
   );
+});
+
+test("deleteProcessedEvent removes the dedup mark", () => {
+  const fp = "owner/repo:issues:opened:99";
+  markEventProcessed(fp);
+  assert.equal(isEventProcessed(fp), true);
+  deleteProcessedEvent(fp);
+  assert.equal(isEventProcessed(fp), false);
 });

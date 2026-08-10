@@ -47,7 +47,10 @@ export class OneBotClient {
         `[OneBot] Configuration changed. Reconnecting to ${newConfig.ws_url}...`
       );
       this.disconnect();
-      setTimeout(() => {
+      // Track the deferred reconnect so a rapid config change cannot leave
+      // multiple pending timers that each open a new connection.
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
         this.forceReconnect();
       }, 500);
     }
@@ -111,13 +114,18 @@ export class OneBotClient {
 
   public connect(): void {
     if (this.isShuttingDown) return;
+    // A manual/forced reconnect supersedes any pending scheduled reconnect.
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.removeAllListeners();
       this.ws.close();
     }
 
     const url = this.config.access_token
-      ? `${this.config.ws_url}?access_token=${this.config.access_token}`
+      ? `${this.config.ws_url}?access_token=${encodeURIComponent(this.config.access_token)}`
       : this.config.ws_url;
 
     console.log(`[OneBot] Connecting to ${this.config.ws_url}...`);

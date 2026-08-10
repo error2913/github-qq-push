@@ -25,7 +25,18 @@
         {
           "type": "group",
           "id": "123456",
-          "events": ["push", "issues", "pull_request", "release", "star", "fork", "issue_comment"]
+          "events": [
+            "push",
+            "issues",
+            "pull_request",
+            "pull_request_review",
+            "pull_request_review_comment",
+            "release",
+            "star",
+            "fork",
+            "issue_comment",
+            "commit_comment"
+          ]
         }
       ]
     }
