@@ -18,6 +18,14 @@
     "username": "admin",
     "password": ""
   },
+  "render": {
+    "image_quality": 90,
+    "max_height": 8000,
+    "theme": "dark",
+    "concurrency": 2,
+    "max_queue_size": 50,
+    "max_screenshot_height": 30000
+  },
   "subscriptions": [
     {
       "repo": "owner/repo",

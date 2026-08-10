@@ -7,9 +7,14 @@ import { getConfig } from "../config";
 
 let browser: Browser | null = null;
 let activeRenders = 0;
-const MAX_CONCURRENT_RENDERS = 2;
 const renderQueue: (() => void)[] = [];
-const MAX_QUEUE_SIZE = 50;
+
+const DEFAULT_CONCURRENCY = 2;
+const DEFAULT_QUEUE_SIZE = 50;
+const DEFAULT_SCREENSHOT_CAP = 30000;
+// Even when the user raises max_screenshot_height, never render a single
+// screenshot above this hard ceiling (huge pages would otherwise OOM).
+const HARD_SCREENSHOT_CAP = 100000;
 
 /**
  * Simple semaphore: cap concurrent Puppeteer page renders so a burst of
@@ -18,8 +23,11 @@ const MAX_QUEUE_SIZE = 50;
  * plain text instead of piling up unbounded memory pressure.
  */
 async function withRenderSlot<T>(fn: () => Promise<T>): Promise<T> {
-  if (activeRenders >= MAX_CONCURRENT_RENDERS) {
-    if (renderQueue.length >= MAX_QUEUE_SIZE) {
+  const renderCfg = getConfig().render;
+  const concurrency = Math.max(1, renderCfg?.concurrency ?? DEFAULT_CONCURRENCY);
+  const maxQueue = Math.max(0, renderCfg?.max_queue_size ?? DEFAULT_QUEUE_SIZE);
+  if (activeRenders >= concurrency) {
+    if (renderQueue.length >= maxQueue) {
       throw new Error("Render queue is full, falling back to text");
     }
     await new Promise<void>((resolve) => renderQueue.push(resolve));
@@ -149,11 +157,18 @@ export async function renderTemplate(
         let finalHeight = bodyHeight + 20;
         let fullPage = renderCfg.max_height === 0 || !!options.fullPage;
 
-        // Safety cap: never render a single screenshot taller than 30000px,
-        // even in fullPage mode (huge READMEs/PRs could otherwise OOM).
-        if (fullPage && bodyHeight > 30000) {
+        // Safety cap: never render a single screenshot taller than the
+        // configured max_screenshot_height (default 30000px), even in fullPage
+        // mode (huge READMEs/PRs could otherwise OOM). A hard ceiling always
+        // applies regardless of the configured value.
+        const configuredCap = renderCfg.max_screenshot_height ?? DEFAULT_SCREENSHOT_CAP;
+        const maxScreenshotHeight =
+          configuredCap <= 0
+            ? HARD_SCREENSHOT_CAP
+            : Math.min(configuredCap, HARD_SCREENSHOT_CAP);
+        if (fullPage && bodyHeight > maxScreenshotHeight) {
           fullPage = false;
-          finalHeight = 30000;
+          finalHeight = maxScreenshotHeight;
         }
 
         if (!fullPage && finalHeight > renderCfg.max_height) {
