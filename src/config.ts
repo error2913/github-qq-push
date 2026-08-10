@@ -24,6 +24,9 @@ export interface RenderConfig {
   image_quality: number; // 0-100
   max_height: number;    // 0 = unlimited
   theme: "light" | "dark";
+  concurrency?: number; // Concurrent Puppeteer renders, default 2 (min 1)
+  max_queue_size?: number; // Render backlog cap, default 50 (0 = fail fast, no queue)
+  max_screenshot_height?: number; // Full-page screenshot safety cap, default 30000 (0 = up to hard ceiling)
 }
 
 export interface SubscriptionTarget {
@@ -112,7 +115,15 @@ export function loadConfig(): AppConfig {
       image_quality: 90,
       max_height: 8000,
       theme: "dark",
+      concurrency: 2,
+      max_queue_size: 50,
+      max_screenshot_height: 30000,
     };
+  }
+  if (config.render.concurrency === undefined) config.render.concurrency = 2;
+  if (config.render.max_queue_size === undefined) config.render.max_queue_size = 50;
+  if (config.render.max_screenshot_height === undefined) {
+    config.render.max_screenshot_height = 30000;
   }
   if (!config.webui) {
     config.webui = { username: "admin", password: "" };
