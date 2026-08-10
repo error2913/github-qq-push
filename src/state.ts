@@ -12,14 +12,12 @@ export interface AppState {
 }
 
 let state: AppState = { groupStates: {}, lastEventIds: {} };
-let configPath = path.resolve(process.cwd(), "config.json");
 let statePath = path.resolve(process.cwd(), "data", "state.json");
 
 /**
  * Initialize state from disk.
  */
 export function initState(): void {
-  configPath = path.resolve(process.cwd(), "config.json");
   statePath = path.resolve(process.cwd(), "data", "state.json");
 
   // Ensure data dir exists
@@ -53,7 +51,13 @@ export function saveState(): void {
  * Save current config back to config.json map
  */
 export function saveConfig(newConfig: AppConfig): void {
-  atomicWriteFileSync(configPath, JSON.stringify(newConfig, null, 2));
+  // Resolve the path on every call: loadConfig() uses the same
+  // process.cwd()-relative lookup, so config.json always lands where it was
+  // loaded from even if the process cwd changed after startup.
+  atomicWriteFileSync(
+    path.resolve(process.cwd(), "config.json"),
+    JSON.stringify(newConfig, null, 2)
+  );
   // Hot reload config in memory by calling loadConfig or updating the reference
   // Since config is imported elsewhere, we mutate the existing config object properties
   const currentConfig = getConfig();

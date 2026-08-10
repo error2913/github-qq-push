@@ -9,13 +9,19 @@ let browser: Browser | null = null;
 let activeRenders = 0;
 const MAX_CONCURRENT_RENDERS = 2;
 const renderQueue: (() => void)[] = [];
+const MAX_QUEUE_SIZE = 50;
 
 /**
  * Simple semaphore: cap concurrent Puppeteer page renders so a burst of
  * events cannot spawn unbounded Chromium pages and exhaust memory.
+ * If the backlog exceeds the queue cap, fail fast so callers fall back to
+ * plain text instead of piling up unbounded memory pressure.
  */
 async function withRenderSlot<T>(fn: () => Promise<T>): Promise<T> {
   if (activeRenders >= MAX_CONCURRENT_RENDERS) {
+    if (renderQueue.length >= MAX_QUEUE_SIZE) {
+      throw new Error("Render queue is full, falling back to text");
+    }
     await new Promise<void>((resolve) => renderQueue.push(resolve));
   }
   activeRenders++;
@@ -111,7 +117,29 @@ export async function renderTemplate(
       try {
         const viewportWidth = options.width || 800;
         await page.setViewport({ width: viewportWidth, height: 100, deviceScaleFactor: 2 });
-        await page.setContent(html, { waitUntil: "networkidle0", timeout: 15000 });
+        // Parse the DOM first, then wait a bounded amount of time for remote
+        // resources (avatars). Waiting for a full network idle can hang for
+        // 15s when a CDN is slow/unreachable (e.g. no Google Fonts access),
+        // which is unacceptable for every single card render.
+        await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 15000 });
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) => {
+              if (document.readyState === "complete") {
+                resolve();
+                return;
+              }
+              const timer = setTimeout(resolve, 2000);
+              window.addEventListener(
+                "load",
+                () => {
+                  clearTimeout(timer);
+                  resolve();
+                },
+                { once: true }
+              );
+            })
+        );
 
         // Auto-calculate content height and enforce max height limits
         const bodyHeight = await page.evaluate(() => {

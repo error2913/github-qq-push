@@ -25,7 +25,7 @@ export async function handlePush(
   const displayCommits = commits.slice(0, 8);
   const commitsHtml = displayCommits
     .map((c: any) => {
-      const sha = c.id.substring(0, 7);
+      const sha = (c.id || c.sha).substring(0, 7);
       const message = escapeHtml(c.message.split("\n")[0]); // first line only
       const author = c.author?.username || c.author?.name || "unknown";
       return `<div class="commit-item">
@@ -68,7 +68,10 @@ export async function handlePush(
     `推送者: ${sender.login}\n` +
     `提交数: ${commits.length}\n` +
     displayCommits
-      .map((c: any) => `  ${c.id.substring(0, 7)} ${c.message.split("\n")[0]}`)
+      .map(
+        (c: any) =>
+          `  ${(c.id || c.sha).substring(0, 7)} ${c.message.split("\n")[0]}`
+      )
       .join("\n") +
     (compareUrl ? `\n对比: ${compareUrl}` : "");
 
